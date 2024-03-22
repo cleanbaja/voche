@@ -2,36 +2,41 @@ import express, { Request, Response } from "express";
 import expressWs from 'express-ws';
 import * as fs from 'fs';
 
-import TTS from './transcribe';
+import STT from './transcribe';
+import TTS from './synthesise';
+import NeuralEngine from "./neural";
 
 const { app } = expressWs(express());
 
 const port = process.env.PORT || 8080;
 
 app.post("/twiml", (req: Request, res: Response) => {
-  console.log('twiml: endpoint requested');
+  console.log('main: twiml endpoint requested');
 
   res.setHeader('content-type', 'application/xml');
   res.send(fs.readFileSync('assets/streams.xml'));
 });
 
 app.ws("/receive", (ws, req) => {
-  const ttsEngine = new TTS((msg) => {});
+  const ttsEngine = new TTS();
+  const neuralEngine = new NeuralEngine(async (result) => { await ttsEngine.speak(result) });
+  const sstEngine = new STT(async (msg) => { await neuralEngine.callback(msg) });
 
   ws.on('message', (rawmsg: string) => {
     const msg = JSON.parse(rawmsg);
 
     switch (msg.event) {
       case 'media':
-        ttsEngine.addChunk(msg.media.payload);
+        sstEngine.addChunk(msg.media.payload);
         break;
 
       case 'start':
-        ttsEngine.enable();
+        sstEngine.enable();
+        ttsEngine.enable(msg.streamSid, (content) => { console.log('wow'); ws.send(content) });
         break;
 
       case 'stop':
-        ttsEngine.disable();
+        sstEngine.disable();
         break;
 
       default:
@@ -44,14 +49,5 @@ app.ws("/receive", (ws, req) => {
 });
 
 app.listen(port, () => {
-  console.log(`[main]: Server is running at http://localhost:${port}`);
+  console.log(`main: Server is running at http://localhost:${port}`);
 });
-
-/*
-const openai = new OpenAI({
-	//apiKey: 'VGdvrBAp56gaYvcN7hMVsrGMzWfwwoXgY6KLWG4qGYQYkhnk',
-  apiKey: 'bwdjSgC3kcaQXbnVdnd6FuBQqvVTwF6SsuxydPY3if8Aslvk',
-	baseURL: 'https://api.fireworks.ai/inference/v1/chat/completions'
-});
-*/
-

@@ -9,11 +9,13 @@
   "author": "Perplex Labs",
   "license": "ISC",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.19.0",
     "express": "^4.19.1",
     "express-ws": "^5.0.2",
     "microsoft-cognitiveservices-speech-sdk": "^1.36.0",
     "openai": "^4.29.2",
-    "tsx": "^4.7.1"
+    "tsx": "^4.7.1",
+    "wavefile": "^11.0.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",

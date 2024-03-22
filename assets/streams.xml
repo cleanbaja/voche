@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say>One second.</Say>
+  <Say>Hello.</Say>
   <Connect>
     <Stream url="wss://5815-2601-441-4981-31b0-00-5f4e.ngrok-free.app/receive"></Stream>
   </Connect>
