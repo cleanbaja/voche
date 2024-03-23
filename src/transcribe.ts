@@ -1,82 +1,94 @@
-import * as sdk from "microsoft-cognitiveservices-speech-sdk";
+import { createClient, LiveClient, LiveTranscriptionEvents } from "@deepgram/sdk";
+import EventEmitter from 'node:events';
+import { Buffer } from 'node:buffer';
 
-const SPEECH_KEY = '7a1a2d11bc9b4078876a1d2a65c1a31b';
-const SPEECH_REIGON = 'eastus';
+const DEEPGRAM_KEY = '49b28e9ba06d25cede49bd7a9136021bc9f2ff31';
 
-export default class SST {
-    stream: sdk.PushAudioInputStream;
-    audioConfig: sdk.AudioConfig;
-    cognitive: sdk.SpeechRecognizer;
-    callback: (result: string) => Promise<void>;
-    active: boolean = false;
+export default class Transcriber extends EventEmitter {
+    cognitive: LiveClient;
+    session_text: string;
+    isFinal = false;
 
-    constructor(callback: (result: string) => Promise<void>) {
-        const config = sdk.SpeechConfig.fromSubscription(SPEECH_KEY, SPEECH_REIGON);
-        const slconfig = sdk.AutoDetectSourceLanguageConfig.fromLanguages(['en-US']);
+    constructor() {
+        super();
 
-        config.setProperty(sdk.PropertyId.Speech_SegmentationSilenceTimeoutMs, "1000");
-        config.setProfanity(sdk.ProfanityOption.Raw);
+        const deepgram = createClient(DEEPGRAM_KEY);
 
-        const format = sdk.AudioStreamFormat.getWaveFormat(8000, 8, 1, sdk.AudioFormatTag.MuLaw);
+        this.cognitive = deepgram.listen.live({
+            model: "nova-2-phonecall",
+            smart_format: true,
+            encoding: "mulaw",
+            sample_rate: 8000,
+            channels: 1,
+            punctuate: true,
+            interim_results: true,
+            endpointing: 200,
+            utterance_end_ms: 1000
+        });
 
-        this.stream = sdk.AudioInputStream.createPushStream(format)
-        this.audioConfig = sdk.AudioConfig.fromStreamInput(this.stream);
-        this.callback = callback;
+        this.session_text = '';
 
-        this.cognitive = sdk.SpeechRecognizer.FromConfig(config, slconfig, this.audioConfig);
-        this.setCallbacks();
+        this.cognitive.on(LiveTranscriptionEvents.Open, () => {
+            console.log('stt: connected to deepgram');
 
-        console.log('sst: engine activated');
-    }
+            this.cognitive.on(LiveTranscriptionEvents.Close, () => {
+                console.log("stt: Connection closed.");
+            });
 
-    setCallbacks() {
-        this.cognitive.sessionStopped = (sender, event) => {
-            console.log('sst: session stopped');
-        };
+            this.cognitive.on(LiveTranscriptionEvents.Transcript, (data) => {
+                if (data.type === 'UtteranceEnd') {
+                    if (!this.isFinal) {
+                        console.log('STT: message is ' + this.session_text);
+                        // this.callback(this.session_text)
+                        this.emit('transcription', this.session_text);
+                    }
+                    return;
+                }
 
-        this.cognitive.sessionStarted = (sender, event) => {
-            console.log('sst: session started');
-        };
+                const text = data.channel.alternatives[0].transcript
 
-        this.cognitive.canceled = (sender, event) => {
-            console.log(`sst: Canceled with Reason=${event.reason}`);
+                if (data.is_final === true && text.trim().length > 0) {
+                    this.session_text += ` ${text}`;
 
-            if (event.reason == sdk.CancellationReason.Error) {
-                console.log(`sst: [CANCELED] ErrorCode=${event.errorCode}`);
-                console.log(`sst: [CANCELED] ErrorDetails=${event.errorDetails}`);
-                console.log("sst: Did you set the speech resource key and region values?");
-            }
-        };
+                    if (data.speech_final === true) {
+                        this.isFinal = true;
+                        console.log('STT: message is ' + this.session_text);
+                        // this.callback(this.session_text)
+                        this.emit('transcription', this.session_text);
 
-        this.cognitive.recognizing = (sender, event) => {
-            if (!this.active) {
-                //console.log('sst: utterance: ');
-                //console.log(event);
-                this.active = true;
-            }
-        };
+                        this.session_text = '';
+                    } {
+                        this.isFinal = false;
+                    }
+                } else if (text.length > 0) {
+                    this.emit('talking', text)
+                }
+            });
 
-        this.cognitive.recognized = async (sender, event) => {
-            this.active = false;
-            // console.log('sst: result=\"' + event.result.text + "\"");
+            this.cognitive.on(LiveTranscriptionEvents.Metadata, (data) => {
+                console.log(data);
+            });
 
-            if (event.result.text != undefined)
-                await this.callback(event.result.text);
-        };
+            this.cognitive.on(LiveTranscriptionEvents.Error, (err) => {
+                console.error(err);
+            });
+        });
+
+        console.log('stt: engine activated');
     }
 
     addChunk(data: string) {
-        const buffer = Buffer.from(data, 'base64');
-        this.stream.write(buffer);
-    }
+        if (!this.cognitive)
+            return;
 
-    enable() {
-        this.cognitive.startContinuousRecognitionAsync();
+        if (this.cognitive.getReadyState() == 0)
+            return;
+
+        this.cognitive.send(Buffer.from(data, "base64"));
     }
 
     disable() {
-        this.stream.close();
-        this.cognitive.stopContinuousRecognitionAsync();
-        console.log('sst: engine shutdown');
+        this.cognitive.finish();
+        this.cognitive.removeAllListeners();
     }
 }

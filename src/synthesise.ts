@@ -1,65 +1,67 @@
-import * as sdk from "microsoft-cognitiveservices-speech-sdk";
-import { WaveFile } from 'wavefile';
-import { TwilioPacket, MediaEvent } from "./utils";
+import { DeepgramClient, createClient } from "@deepgram/sdk";
+import EventEmitter from 'node:events';
+import { Buffer } from 'node:buffer';
 
-const SPEECH_KEY = '7a1a2d11bc9b4078876a1d2a65c1a31b';
-const SPEECH_REIGON = 'eastus';
+const DEEPGRAM_KEY = '49b28e9ba06d25cede49bd7a9136021bc9f2ff31';
 
-export default class TTS {
+export default class Synthesizer extends EventEmitter {
     sid: string | null;
-    engine: sdk.SpeechSynthesizer;
-    callback: (content: string) => void;
+    deepgram: DeepgramClient;
 
     constructor() {
-        const config = sdk.SpeechConfig.fromSubscription(SPEECH_KEY, SPEECH_REIGON);
-        config.speechSynthesisVoiceName = "en-US-AvaMultilingualNeural";
-        config.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Riff24Khz16BitMonoPcm;
+        super();
 
-        this.engine = new sdk.SpeechSynthesizer(config);
+        this.deepgram = createClient(DEEPGRAM_KEY);
 
         this.sid = null;
-        this.callback = () => {};
     }
 
-    enable(sid: string, callback: (content: string) => void) {
+    enable(sid: string) {
         this.sid = sid;
-        this.callback = callback;
 
-        console.log("tts: engine enabled");
+        console.log("TTS: Engine Enabled");
     }
 
-    speak(chunk: string) {
-        console.log('tts: speaking');
+    async speak(chunk: string, id: number) {
+        console.log(`TTS: Speaking = ${chunk}`);
 
-        this.engine.speakTextAsync(
-            chunk,
-            result => {
-                const { audioData } = result;
+        const response = await this.deepgram.speak.request(
+            { text: chunk },
+            {
+                model: "aura-asteria-en",
+                encoding: "mulaw",
+                container: "none",
+                sample_rate: 8000,
+            }
+        );
 
-                this.callback(this.encode(audioData));
-            },
-            error => {
-                console.log(error);
-                this.engine.close();
-            });
-    }
+        const getAudioBuffer = async (response: ReadableStream) => {
+            const reader = response.getReader();
+            const chunks = [];
 
-    private transform(raw: ArrayBuffer) {
-        const wav = new WaveFile(new Uint8Array(raw));
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
 
-        wav.toMuLaw();
-        return wav.toBase64();
-    }
+                chunks.push(value);
+            }
 
-    private encode(raw: ArrayBuffer) {
-        let packet = new TwilioPacket(this.sid as string, 'media');
-        packet.media = {
-            payload: this.transform(raw)
+            const dataArray = chunks.reduce(
+                (acc, chunk) => Uint8Array.from([...acc, ...chunk]),
+                new Uint8Array(0)
+            );
+
+            return Buffer.from(dataArray.buffer);
         };
 
-        console.log('tts: just encoded packet...');
-        console.log(packet);
+        const stream = await response.getStream();
 
-        return JSON.stringify(packet);
+        if (stream != null) {
+            this.emit('audio_packet', this.encode(await getAudioBuffer(stream as ReadableStream<Uint8Array>)), id)
+        }
+    }
+
+    private encode(raw: Buffer) {
+        return raw.toString('base64');
     }
 }

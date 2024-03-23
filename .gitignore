@@ -1,2 +1,11 @@
+# js artifacts
 node_modules/
+dist/
+
+# editor settings
+.vscode/
+.idea/
+
+# misc stuff
 .env*
+log*.txt
