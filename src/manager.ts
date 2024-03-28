@@ -18,19 +18,19 @@ export default class CallManager {
     this.transcriber = new Transcriber();
     this.engine = new AnthropicEngine(this.transcriber, this.marks);
     this.synthesizer = new Synthesizer();
+    
     this.stream = new Stream(ws);
-
     this.setEventHandlers();
   }
 
-  setEventHandlers() {
+  private setEventHandlers() {
     this.transcriber.on("transcription", async (text) => {
       await this.engine.callback(text, "•");
     });
 
     this.transcriber.on("clear", () => {
       console.log("Clearing Stream!");
-      this.stream.sendClear();
+      this.stream?.sendClear();
       this.engine.marks = [""];
     });
 
@@ -39,16 +39,16 @@ export default class CallManager {
     });
 
     this.synthesizer.on("audio_packet", async (packet, id) => {
-      await this.stream.buffer(id, packet);
+      await this.stream?.buffer(id, packet);
     });
 
-    this.stream.on("audiosent", async (chunkId) => {
+    this.stream?.on("audiosent", async (chunkId) => {
       await this.marks.push(chunkId);
     });
   }
 
-  handleMessage(ev: MessageEvent<any>) {
-    const msg = JSON.parse(ev.data);
+  handleMessage(data: string) {
+    const msg = JSON.parse(data);
 
     switch (msg.event) {
       case "media":
