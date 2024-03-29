@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Say>This is a Confidential Trial of automated software from Perplex Labs. All Rights Reserved. Starting call now.</Say>
-  <Connect>
-    <Stream url="wss://bf11-71-127-43-49.ngrok-free.app/receive"></Stream>
-  </Connect>
-  <Hangup/>
-</Response>
