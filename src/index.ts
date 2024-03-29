@@ -2,6 +2,7 @@ import CallManager from "./manager.ts";
 import { isBun, isDeno, isNode } from "./utils.ts";
 
 if (isDeno) {
+  // @ts-ignore
   Deno.serve((req) => {
     const url = new URL(req.url);
 
@@ -10,16 +11,18 @@ if (isDeno) {
         return new Response(null, { status: 501 });
       }
 
+      // @ts-ignore
       const { socket, response } = Deno.upgradeWebSocket(req);
 
       const manager = new CallManager(socket);
 
-      socket.addEventListener("message", (event) => {
+      socket.addEventListener("message", (event: any) => {
         manager.handleMessage(event.data);
       });
 
       return response;
     } else if (url.pathname === "/twiml") {
+      // @ts-ignore
       return new Response(Deno.readTextFileSync("./assets/streams.xml"));
     }
 
@@ -49,6 +52,7 @@ if (isDeno) {
     websocket: {
       open(ws) {
         console.log('server: connecting to socket...');
+        // @ts-ignore
         ws.data = new CallManager(ws);
       },
       message(ws, message) {

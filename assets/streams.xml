@@ -2,7 +2,7 @@
 <Response>
   <Say>This is a Confidential Trial of automated software from Perplex Labs. All Rights Reserved. Starting call now.</Say>
   <Connect>
-    <Stream url="wss://9b68-2601-441-4900-9c00-00-3ec0.ngrok-free.app/receive"></Stream>
+    <Stream url="wss://bf11-71-127-43-49.ngrok-free.app/receive"></Stream>
   </Connect>
   <Hangup/>
 </Response>

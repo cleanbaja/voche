@@ -3,10 +3,14 @@ import Stream from "./stream.ts";
 import Synthesizer from "./synthesise.ts";
 import Transcriber from "./transcribe.ts";
 
+import AnthropicBuffer from "./buffers/anthropic.ts";
+
+
 export default class CallManager {
   transcriber: Transcriber;
   engine: AnthropicEngine;
   synthesizer: Synthesizer;
+  conversation_buffer: AnthropicBuffer;
   stream: Stream;
   marks: string[];
   streamSid: string;
@@ -14,9 +18,10 @@ export default class CallManager {
   constructor(ws: WebSocket) {
     this.streamSid = "";
     this.marks = [];
+    this.conversation_buffer = new AnthropicBuffer([]);
 
     this.transcriber = new Transcriber();
-    this.engine = new AnthropicEngine(this.transcriber, this.marks);
+    this.engine = new AnthropicEngine(this.conversation_buffer, this.marks);
     this.synthesizer = new Synthesizer();
     
     this.stream = new Stream(ws);
@@ -28,22 +33,34 @@ export default class CallManager {
       await this.engine.callback(text, "•");
     });
 
-    this.transcriber.on("clear", () => {
-      console.log("Clearing Stream!");
-      this.stream?.sendClear();
-      this.engine.marks = [""];
+    this.transcriber.on("talking", () => {
+      if (this.marks.length > 0) {
+        this.stream?.sendClear();
+        this.marks = []
+        this.engine.active = false;
+      }
     });
 
     this.engine.on("response_generated", async (text, id) => {
       await this.synthesizer.speak(text, id);
     });
 
-    this.synthesizer.on("audio_packet", async (packet, id) => {
-      await this.stream?.buffer(id, packet);
+    this.engine.on("done", async () => {
+      console.log('reached how many times')
+      if (this.conversation_buffer._memory.assistant != '') {
+        this.conversation_buffer._memory.assistant = '*Empty Content*'
+      }
+      this.conversation_buffer.addSegment('assistant', this.conversation_buffer._memory.assistant);
+      this.conversation_buffer._memory.assistant = '';
     });
 
-    this.stream?.on("audiosent", async (chunkId) => {
+    this.synthesizer.on("audio_packet", async (packet, id, text) => {
+      await this.stream?.buffer(id, packet, text);
+    });
+
+    this.stream?.on("audiosent", async (chunkId, text) => {
       await this.marks.push(chunkId);
+      this.conversation_buffer.addMemory('assistant', text);
     });
   }
 

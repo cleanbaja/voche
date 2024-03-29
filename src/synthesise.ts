@@ -57,7 +57,7 @@ export default class Synthesizer extends EventEmitter {
         const stream = await response.getStream();
 
         if (stream != null) {
-            this.emit('audio_packet', this.encode(await getAudioBuffer(stream as ReadableStream<Uint8Array>)), id)
+            this.emit('audio_packet', this.encode(await getAudioBuffer(stream as ReadableStream<Uint8Array>)), id, chunk)
         }
     }
 

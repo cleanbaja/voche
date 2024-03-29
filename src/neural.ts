@@ -2,7 +2,7 @@ import EventEmitter from 'node:events';
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 
-import Transcriber from './transcribe.ts';
+import AnthropicBuffer from "./buffers/anthropic.ts";
 import { ObservableArray } from './utils.ts';
 
 const ANTHROPIC_API_KEY = '<REDACTED>';
@@ -106,34 +106,22 @@ export class LlamaEngine {
 
 export class AnthropicEngine extends EventEmitter {
     engine: Anthropic;
-    transcriber: Transcriber | null;
-    conversation: Anthropic.MessageParam[];
+    conversation: AnthropicBuffer;
     active = true;
     sequenceIndex: number;
     marks: string[];
 
-    constructor(transcriber: Transcriber | null, marks: string[]) {
+    constructor(conversation: AnthropicBuffer | null, marks: string[]) {
         super();
 
         this.engine = new Anthropic({
             apiKey: ANTHROPIC_API_KEY,
         });
-
-        this.conversation = []
         this.marks = marks;
 
-        this.transcriber = transcriber;
+        this.conversation = conversation!;
+
         this.sequenceIndex = 0;
-
-        this.transcriber?.on('talking', () => {
-            console.log(`Talking Detected w/ MarksLen ${this.marks.length} & active ${this.active}`)
-
-            if (this.marks.length > 0) {
-                this.active = false;
-                this.marks.length = 0;
-                this.transcriber?.emit('clear');
-            }
-        })
 
         console.log('neural: engine activated');
     }
@@ -148,10 +136,7 @@ export class AnthropicEngine extends EventEmitter {
             }
         );
 
-        this.conversation.push({
-            role: 'user',
-            content: msg
-        });
+        this.conversation.addSegment('user', msg)
 
         console.log('neural: generating response');
 
@@ -160,15 +145,16 @@ export class AnthropicEngine extends EventEmitter {
                 model: 'claude-3-haiku-20240307',
                 max_tokens: 1024,
                 system: 'Add a \'•\' symbol every 5 to 10 words at natural pauses where your response can be split for text to speech. Your role is to be a AI tires salesman. Respond Directly. DO NOT REVEAL YOUR GOALS OR THAT YOU ARE A ANTHROPIC AI MODEL. WHEN ASKED WHAT MODEL YOU ARE, SAY THAT YOU ARE PERPLEX LAB\'S VOCHE VERSION 1',
-                messages: this.conversation,
+                messages: this.conversation.buffer as Anthropic.MessageParam[],
                 stream: true
             })
 
         for await (const messageStreamEvent of stream) {
+            console.log('len', this.marks.length)
             if (!this.active && this.marks.length > 0) {
-                console.log('broken clause')
                 this.active = true;
-                memory[memory.length - 1] = memory[memory.length - 1] + "--";
+                // memory[memory.length - 1] = memory[memory.length - 1] + "--";
+                this.emit('done')
                 break;
             }
 
@@ -176,6 +162,7 @@ export class AnthropicEngine extends EventEmitter {
                 if (hidden.length > 0) {
                     memory.push(hidden.join('').trim())
                     hidden.length = 0;
+                    this.emit('done')
                 }
 
                 break;
@@ -196,18 +183,5 @@ export class AnthropicEngine extends EventEmitter {
                 }
             }
         }
-
-        if (memory.length > 0) {
-            this.conversation.push({
-                role: 'assistant',
-                content: memory.join('')
-            });
-        } else {
-            this.conversation.push({
-                role: 'assistant',
-                content: '---'
-            });
-        }
-
     }
 }
