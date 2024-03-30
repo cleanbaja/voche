@@ -1,15 +1,16 @@
-import { MediaPacket, Synthesizer } from './index.ts';
+import { type Synthesizer } from './index.ts';
 import { TTSProfiler } from '../util/profiler.ts';
 import { XI_API_KEY } from '../util/env.ts';
 import EventEmitter from 'node:events';
+import type { Platform } from '../platform/index.ts';
 
 export class ElevenLabsTTS implements Synthesizer {
     socket: WebSocket;
-    platform: string;
+    platform: Platform;
     profiler: TTSProfiler;
     sid?: string;
 
-    constructor(bus: EventEmitter, platform: string) {
+    constructor(bus: EventEmitter, platform: Platform) {
         this.platform = platform;
         this.profiler = new TTSProfiler();
         this.socket = new WebSocket('wss://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM/stream-input?model_id=eleven_monolingual_v1&output_format=ulaw_8000&optimize_streaming_latency=1')
@@ -37,7 +38,7 @@ export class ElevenLabsTTS implements Synthesizer {
                 return;
             }
 
-            bus.emit('tts:data', this.encode(data.audio));
+            bus.emit('tts:data', this.platform.encode(data.audio));
         });
 
         // twilio socket is active with stream info
@@ -51,25 +52,6 @@ export class ElevenLabsTTS implements Synthesizer {
 
             this.socket.send(JSON.stringify({ "text": data, "try_trigger_generation": true }))
         });
-    }
-
-    private encode(raw: string) {
-        if (this.platform === "twilio") {
-            if (!this.sid)
-                return;
-
-            let packet: MediaPacket = {
-                event: 'media',
-                streamSid: this.sid,
-                media: {
-                    payload: raw
-                }
-            }
-
-            return JSON.stringify(packet);
-        }
-
-        return "";
     }
 
     async disable() {

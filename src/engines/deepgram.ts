@@ -2,30 +2,38 @@ import { LiveClient, DeepgramClient, createClient, LiveTranscriptionEvents } fro
 import EventEmitter from 'node:events';
 import { Buffer } from 'node:buffer';
 
-import { Transcriber, Synthesizer, MediaPacket } from './index.ts';
+import { type Transcriber, type Synthesizer } from './index.ts';
 import { createLogger } from '../util/logger.ts';
 import { TTSProfiler } from '../util/profiler.ts';
 import { DEEPGRAM_API_KEY } from '../util/env.ts';
+import type { Platform } from '../platform/index.ts';
 
 const logger = createLogger('deepgram');
 
 export class DeepgramSTT implements Transcriber {
     cognitive: LiveClient;
+    queue: string[];
 
-    constructor(bus: EventEmitter, platform: string) {
+    constructor(bus: EventEmitter, platform: Platform) {
         const client = createClient(DEEPGRAM_API_KEY);
+        this.queue = [];
 
-        if (platform === 'web') {
+        if (platform.hasContainer(true)) {
             this.cognitive = client.listen.live({
                 interim_results: true,
-                smart_format: true,
+                punctuate: true,
+                endpointing: 100,
             });
         } else {
+            const format = platform.getInputAudioFormat();
+
             this.cognitive = client.listen.live({
                 model: 'nova-2-phonecall',
-                smart_format: true,
-                encoding: 'mulaw',
-                sample_rate: 8000,
+                punctuate: true,
+                interim_results: true,
+                endpointing: 100,
+                encoding: format.encoding,
+                sample_rate: format.sample_rate,
                 channels: 1,
             });
         }
@@ -38,11 +46,20 @@ export class DeepgramSTT implements Transcriber {
             });
 
             this.cognitive.on(LiveTranscriptionEvents.Transcript, (data) => {
-                if (data.is_final) {
-                    const msg = data.channel.alternatives[0].transcript;
+                const text = data.channel.alternatives[0].transcript;
 
-                    if (msg.length !== 0)
-                        bus.emit('stt:data', msg);
+                // skip empty packets
+                if (text.length === 0 || !data.is_final || !data.speech_final)
+                    return;
+
+                // add only complete packets with transcripting to the queue
+                if (text.match(/[.;?!]/) !== null) {
+                    bus.emit('stt:data', this.queue.join(' ') + text);
+                    this.queue = [];
+
+                    // TODO(med): figure out comma edge-cases
+                } else {
+                    this.queue.push(text);
                 }
             });
 
@@ -74,10 +91,10 @@ export class DeepgramSTT implements Transcriber {
 export class DeepgramTTS implements Synthesizer {
     deepgram: DeepgramClient;
     profiler: TTSProfiler;
-    platform: string;
+    platform: Platform;
     sid?: string;
 
-    constructor(bus: EventEmitter, platform: string,) {
+    constructor(bus: EventEmitter, platform: Platform) {
         this.deepgram = createClient(DEEPGRAM_API_KEY);
         this.platform = platform;
 
@@ -89,14 +106,12 @@ export class DeepgramTTS implements Synthesizer {
 
         bus.on('stt:data', async (data: string) => {
             this.profiler.signalStart();
-            
+
             const response = await this.deepgram.speak.request(
                 { text: data },
                 {
                     model: "aura-asteria-en",
-                    encoding: "mulaw",
-                    container: "none",
-                    sample_rate: 8000,
+                    ...this.platform.getOutputAudioFormat()
                 }
             );
 
@@ -111,32 +126,12 @@ export class DeepgramTTS implements Synthesizer {
                     if (done) break;
 
                     this.profiler.signalFirstByte();
-                    bus.emit('tts:data', this.encode(value));
+                    bus.emit('tts:data', this.platform.encode(value));
                 }
             }
 
             this.profiler.signalEnd();
         });
-    }
-
-    private encode(raw: Uint8Array) {
-        if (this.platform === "twilio") {
-            if (!this.sid)
-                return;
-
-            let packet: MediaPacket = {
-                event: 'media',
-                streamSid: this.sid,
-                media: {
-                    payload: Buffer.from(raw).toString('base64')
-                }
-            }
-    
-            return JSON.stringify(packet);
-        }
-
-        logger.warn('output for platform ' + this.platform + ' is unsupported!');
-        return "";
     }
 
     async disable() {

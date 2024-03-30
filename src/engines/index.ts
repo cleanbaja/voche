@@ -26,15 +26,3 @@ export interface Synthesizer {
      */
     disable: () => void;
 }
-
-/**
- * Packet of data sent to twilio
- */
-export interface MediaPacket {
-    event: string;
-    streamSid: string;
-    media: MediaData;
-}
-export interface MediaData {
-    payload: string;
-}

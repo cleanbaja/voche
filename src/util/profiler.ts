@@ -31,7 +31,6 @@ export class TTSProfiler implements Profiler {
     }
 
     signalStart() {
-        console.log(this.mutex);
         this.mutex.use(async () => {
             if (!this.current.start)
                 this.current.start = Date.now();

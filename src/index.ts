@@ -1,11 +1,11 @@
-import { DeepgramSTT } from "./engines/deepgram.ts";
 import { isBun, isDeno, isNode } from "./util/runtime.ts";
 import { NGROK_URL } from "./util/env.ts";
 import Manager from "./manager.ts";
+import type { Platform } from "./platform/index.ts";
+import { Twilio } from "./platform/twilio.ts";
 
 const rawfile = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say>This is a Confidential Trial of automated software from Perplex Labs. All Rights Reserved. Starting call now.</Say>
   <Connect>
     <Stream url="wss://@NGROK_URL@/receive"></Stream>
   </Connect>
@@ -15,7 +15,7 @@ const rawfile = `<?xml version="1.0" encoding="UTF-8"?>
 const config = rawfile.replace('@NGROK_URL@', NGROK_URL);
 
 if (isBun) {
-    Bun.serve<DeepgramSTT | null>({
+    Bun.serve<Manager>({
         fetch(req, server) {
             const url = new URL(req.url);
 
@@ -24,7 +24,7 @@ if (isBun) {
                     return new Response(null, { status: 501 });
                 }
 
-                if (server.upgrade(req, { data: null })) {
+                if (server.upgrade(req, { data: new Manager(new Twilio()) })) {
                     return;
                 }
 
@@ -42,15 +42,15 @@ if (isBun) {
         websocket: {
             open(ws) {
                 console.log('server: connecting to socket...');
-
-                // @ts-ignore
-                ws.data = new DeepgramSTT();
             },
             message(ws, message) {
                 const msg = JSON.parse(String(message));
 
+                if (msg.event === 'start')
+                    ws.data?.eventbus.emit('manager:active', msg.streamSid);
+
                 if (msg.event === 'media')
-                    ws.data?.addChunk(msg.media.payload);
+                    ws.data?.stt.addChunk(message);
             }
         },
         port: 3000,
@@ -59,7 +59,7 @@ if (isBun) {
     Deno.serve({ port: 3000 }, (req) => {
         const url = new URL(req.url);
 
-        const setupWebSocket = (plat: string) => {
+        const setupWebSocket = (plat: Platform) => {
             if (req.headers.get("upgrade") != "websocket") {
                 return new Response(null, { status: 501 });
             }
@@ -70,6 +70,7 @@ if (isBun) {
 
             // listen for completed audio chunks from tts
             manager.eventbus.on('tts:data', (data: any) => {
+                console.log('sending data');
                 socket.send(data);
             })
 
@@ -89,9 +90,7 @@ if (isBun) {
                 }
             });
         } else if (url.pathname === "/receive") {
-            return setupWebSocket('twilio')
-        } else if (url.pathname === "/receive-web") {
-            return setupWebSocket('web');
+            return setupWebSocket(new Twilio())
         }
 
         return new Response(null, { status: 404 });
