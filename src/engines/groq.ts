@@ -1,9 +1,10 @@
-import EventEmitter from "node:events";
+import { EventEmitter } from "tseep";
 import { Mutex } from "semaphore";
 import OpenAI from "openai";
 
 import { Neural } from "./index.ts";
 import { createLogger } from "../util/logger.ts";
+import { NeuralProfiler } from "../util/profiler.ts";
 
 const logger = createLogger('groq');
 
@@ -11,9 +12,11 @@ export class Groq implements Neural {
     engine: OpenAI;
     conversation: OpenAI.ChatCompletionMessageParam[];
     mutex: Mutex;
+    profiler: NeuralProfiler;
 
     constructor(bus: EventEmitter) {
         this.mutex = new Mutex();
+        this.profiler = new NeuralProfiler();
 
         this.engine = new OpenAI({
             apiKey: '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',
@@ -23,14 +26,13 @@ export class Groq implements Neural {
         this.conversation = [
             {
                 role: 'user',
-                content: 'Your role is to be a AI tires salesman. Respond Directly. DO NOT REVEAL YOUR GOALS OR THAT YOU ARE A ANTHROPIC AI MODEL. WHEN ASKED WHAT MODEL YOU ARE, SAY THAT YOU ARE PERPLEX LAB\'S VOCHE VERSION 1. A friendly and helpful AI assistant. You must add a \'•\' symbol every 5 to 10 words at natural pauses where your response can be split for text to speech.'
+                content: 'Your role is to be a AI tires salesman.'
             },
             {
                 role: 'assistant',
                 content: 'I understand.',
             }
         ]
-
 
         bus.on("stt:data", async (data: string) => {
             await this.generateText(data, bus);
@@ -45,48 +47,24 @@ export class Groq implements Neural {
             content: data
         });
 
-        const stream = await this.engine.chat.completions.create({
-            model: "mixtral-8x7b-32768",
-            stream: true,
+        this.profiler.signalStart();
+
+        const response = await this.engine.chat.completions.create({
+            model: "llama2-70b-4096",
+            stream: false,
             messages: this.conversation,
-            max_tokens: 1000
+            max_tokens: 50
         });
 
-        const hidden: Array<string> = [];
-        const memory: Array<string> = [];
+        this.profiler.signalEnd();
 
-        for await (const chunk of stream) {
-            const content = chunk.choices[0]?.delta?.content;
+        const text = response.choices[0].message.content;
 
-            if (content == null || content == undefined) {
-                continue;
-            }
-
-            logger.debug('content generated is ' + content);
-
-
-            if (content?.includes("•")) {
-                const split = content.split("•");
-
-                if (split[0] != '' && hidden.length > 0) {
-                    hidden.push(split[0]);
-
-                    bus.emit('neural:data', hidden.join(''));
-
-                    memory.push(hidden.join(''));
-                    hidden.length = 0;
-                }
-
-                // Clear the hidden array
-                hidden.push(split[1]); // Add the remaining part to hidden
-            } else {
-                hidden.push(content!);
-            }
-        }
+        bus.emit('neural:data', text);
 
         this.conversation.push({
             role: 'assistant',
-            content: memory.join()
+            content: text
         });
 
         release();

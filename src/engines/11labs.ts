@@ -1,7 +1,7 @@
 import { type Synthesizer } from './index.ts';
 import { TTSProfiler } from '../util/profiler.ts';
 import { XI_API_KEY } from '../util/env.ts';
-import EventEmitter from 'node:events';
+import { EventEmitter } from "tseep";
 import type { Platform } from '../platform/index.ts';
 
 export class ElevenLabsTTS implements Synthesizer {

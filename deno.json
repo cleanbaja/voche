@@ -1,13 +1,14 @@
 {
   "$schema": "https://raw.githubusercontent.com/denoland/deno/v1.41.0/cli/schemas/config-file.v1.json",
   "tasks": {
-    "dev": "deno run --watch --allow-net --allow-env src/index.ts",
+    "dev": "deno run --watch --allow-all src/index.ts",
     "build": "deno compile --allow-net --allow-env --output voched src/index.ts"
   },
   "imports": {
     "@deepgram/sdk": "npm:@deepgram/sdk@^3.2.0",
     "semaphore": "https://deno.land/x/semaphore@v1.1.1/mod.ts",
-    "openai": "npm:openai@^4.31.0/"
+    "openai": "npm:openai@^4.31.0/",
+    "tseep": "npm:tseep@^1.2.1/"
   },
   "deploy": {
     "project": "36a6ea18-909a-4914-8723-3e634df6e7e6",

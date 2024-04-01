@@ -16,7 +16,6 @@ Deno.serve({ port: 3000 }, (req) => {
   const url = new URL(req.url);
 
   if (!config) {
-    console.log(url);
     config = rawfile.replace("@NGROK_URL@", url.hostname);
   }
 

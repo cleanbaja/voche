@@ -3,7 +3,9 @@
   "packages": {
     "specifiers": {
       "npm:@deepgram/sdk@^3.2.0": "npm:@deepgram/sdk@3.2.0",
-      "npm:openai@^4.31.0": "npm:openai@4.31.0"
+      "npm:@types/node": "npm:@types/node@18.16.19",
+      "npm:openai@^4.31.0": "npm:openai@4.31.0",
+      "npm:tseep@^1.2.1": "npm:tseep@1.2.1"
     },
     "npm": {
       "@deepgram/captions@1.2.0": {
@@ -273,6 +275,10 @@
         "integrity": "sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==",
         "dependencies": {}
       },
+      "tseep@1.2.1": {
+        "integrity": "sha512-VFnsNcPGC4qFJ1nxbIPSjTmtRZOhlqLmtwRqtLVos8mbRHki8HO9cy9Z1e89EiWyxFmq6LBviI9TQjijxw/mEw==",
+        "dependencies": {}
+      },
       "type@2.7.2": {
         "integrity": "sha512-dzlvlNlt6AXU7EBSfpAscydQ7gXB+pPGsPnfJnZpiNJBDj7IaJzQlBZYGdEi4R9HmPdBv2XmWJ6YUtoTa7lmCw==",
         "dependencies": {}
@@ -347,7 +353,8 @@
   "workspace": {
     "dependencies": [
       "npm:@deepgram/sdk@^3.2.0",
-      "npm:openai@^4.31.0"
+      "npm:openai@^4.31.0",
+      "npm:tseep@^1.2.1"
     ]
   }
 }

@@ -4,7 +4,7 @@ import {
   LiveClient,
   LiveTranscriptionEvents,
 } from "@deepgram/sdk";
-import EventEmitter from "node:events";
+import { EventEmitter } from "tseep";
 import { Buffer } from "node:buffer";
 
 import { type Synthesizer, type Transcriber } from "./index.ts";
@@ -58,6 +58,8 @@ export class DeepgramSTT implements Transcriber {
           return;
         }
 
+        console.log(text);
+
         // add only complete packets with transcripting to the queue
         if (text.match(/[.;?!]/) !== null) {
           bus.emit("stt:data", this.queue.join(" ") + text);
@@ -79,6 +81,7 @@ export class DeepgramSTT implements Transcriber {
     });
   }
 
+  // @ts-ignore: async is a part of the interface
   async addChunk(data: string | Buffer) {
     if (this.cognitive.getReadyState() === 1) {
       // @ts-ignore: socket.send takes a Buffer
@@ -86,6 +89,7 @@ export class DeepgramSTT implements Transcriber {
     }
   }
 
+  // @ts-ignore: async is a part of the interface
   async disable() {
     if (this.cognitive.getReadyState() === 1) {
       this.cognitive.finish();

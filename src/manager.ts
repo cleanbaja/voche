@@ -1,10 +1,12 @@
-import EventEmitter from "node:events"
+import { EventEmitter } from "tseep";
 import { Buffer } from 'node:buffer';
 
-import { Neural, type Synthesizer, type Transcriber } from "./engines/index.ts";
+import { type Neural, type Synthesizer, type Transcriber } from "./engines/index.ts";
+import type { Platform } from "./platform/index.ts";
+
+// engines
 import { DeepgramSTT, DeepgramTTS } from "./engines/deepgram.ts";
 import { Groq } from "./engines/groq.ts";
-import type { Platform } from "./platform/index.ts";
 
 export default class Manager {
     /**
@@ -17,11 +19,6 @@ export default class Manager {
      * 
      * Messages transfered on this bus have the following
      * formats:
-     * 
-     * - `manager:active` - Message emitted on the activation of
-     *   a socket connection with Twilio. This message has one
-     *   payload: `sid`. This payload is the Stream SID of the
-     *   parent socket connection to Twilio...
      * 
      * - `stt:data` - This messsage is released onto the eventbus
      *   when the stt has finished transcribing a chunk of audio
@@ -39,14 +36,18 @@ export default class Manager {
      */
     eventbus: EventEmitter;
 
-
     platform: Platform;
     stt: Transcriber;
     tts: Synthesizer;
     neural: Neural;
 
     constructor(platform: Platform) {
-        this.eventbus = new EventEmitter();
+        this.eventbus = new EventEmitter<{
+            'stt:data': (data: string) => void;
+            'neural:data': (data: string) => void;
+            'tts:data': (data: string) => void;
+        }>();
+
         this.stt = new DeepgramSTT(this.eventbus, platform);
         this.tts = new DeepgramTTS(this.eventbus, platform);
         this.neural = new Groq(this.eventbus);

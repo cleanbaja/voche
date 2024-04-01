@@ -74,5 +74,5 @@ export interface Platform {
      *
      * @param event message event passed in from socket
      */
-    decode: (event: MessageEvent<any>) => string | Buffer | boolean;
+    decode: (event: MessageEvent) => string | Buffer | boolean;
 }
