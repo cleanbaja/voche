@@ -1,4 +1,4 @@
-import { Mutex } from 'await-semaphore';
+import { Mutex } from 'semaphore';
 
 type ProfileRecord = {
     start: number;

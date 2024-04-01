@@ -17,7 +17,7 @@ export interface MediaData {
 export class Twilio implements Platform {
     sid?: string;
 
-    hasContainer(input: boolean) {
+    hasContainer(_input: boolean) {
         return false;
     }
 
@@ -44,7 +44,7 @@ export class Twilio implements Platform {
         if (!this.sid)
             return "";
 
-        let packet: MediaPacket = {
+        const packet: MediaPacket = {
             event: 'media',
             streamSid: this.sid,
             media: {
@@ -61,7 +61,7 @@ export class Twilio implements Platform {
      *
      * @param event message event passed in from socket
      */
-    decode(event: MessageEvent<any>) {
+    decode(event: MessageEvent) {
         const msg = JSON.parse(event.data);
 
         if (msg.event === 'start') {

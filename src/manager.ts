@@ -1,9 +1,9 @@
 import EventEmitter from "node:events"
 import { Buffer } from 'node:buffer';
 
-import { type Synthesizer, type Transcriber } from "./engines/index.ts";
+import { Neural, type Synthesizer, type Transcriber } from "./engines/index.ts";
 import { DeepgramSTT, DeepgramTTS } from "./engines/deepgram.ts";
-import type { PlatformPath } from "node:path";
+import { Groq } from "./engines/groq.ts";
 import type { Platform } from "./platform/index.ts";
 
 export default class Manager {
@@ -43,16 +43,18 @@ export default class Manager {
     platform: Platform;
     stt: Transcriber;
     tts: Synthesizer;
+    neural: Neural;
 
     constructor(platform: Platform) {
         this.eventbus = new EventEmitter();
         this.stt = new DeepgramSTT(this.eventbus, platform);
         this.tts = new DeepgramTTS(this.eventbus, platform);
+        this.neural = new Groq(this.eventbus);
 
         this.platform = platform;
     }
 
-    public async handleEvent(event: MessageEvent<any>) {
+    public handleEvent(event: MessageEvent) {
         const result = this.platform.decode(event);
 
         if (result !== false)
@@ -62,5 +64,6 @@ export default class Manager {
     public async shutdown() {
         await this.stt.disable();
         await this.tts.disable();
+        await this.neural.disable();
     }
 }

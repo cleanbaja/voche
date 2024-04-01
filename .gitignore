@@ -8,4 +8,5 @@ dist/
 
 # misc stuff
 .env*
+voched
 log*.txt
